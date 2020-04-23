@@ -1,4 +1,4 @@
-service: aws-node-typescript-rest-api-with-dynamodb
+service: aws-serverless
 
 frameworkVersion: ">=1.1.0 <2.0.0"
 
