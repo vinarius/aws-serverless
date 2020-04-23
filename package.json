@@ -1,6 +1,6 @@
 {
-  "name": "aws-node-typescript-rest-api-with-dynamodb",
-  "version": "0.0.0",
+  "name": "aws-serverless",
+  "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,13 +12,13 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/aws-sdk": "0.0.42",
-    "@types/node": "^7.0.5",
-    "tslint": "^5.5.0",
-    "tslint-config-standard": "^6.0.1",
-    "typescript": "^2.4.2"
+    "@types/aws-sdk": "^2.7.0",
+    "@types/node": "^12.12.37",
+    "tslint": "^6.1.1",
+    "tslint-config-standard": "^9.0.0",
+    "typescript": "^3.8.3"
   },
   "dependencies": {
-    "uuid": "^3.1.0"
+    "uuid": "^7.0.3"
   }
 }
