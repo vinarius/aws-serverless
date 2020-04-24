@@ -1,10 +1,14 @@
+org: vinarius
+app: aws-serverless
 service: aws-serverless
 
 frameworkVersion: ">=1.1.0 <2.0.0"
 
 provider:
   name: aws
+  # cfnRole: arn:aws:iam::#{AWS::AccountId}:role/CFN-Serverless-Role # Causes error 'Cross-account pass role is not allowed' - need to investigate
   runtime: nodejs12.x
+  stage: dev
   region: us-east-1
   environment:
     DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
@@ -19,20 +23,31 @@ provider:
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
 
+plugins:
+  - serverless-s3-sync
+  - serverless-pseudo-parameters
+
 functions:
   create:
-    handler: todos/create.create
+    handler: Api-Routes/create.default
     events:
       - http:
-          path: todos
+          path: api/magic
           method: post
           cors: true
 
 resources:
+  # Raw cloud formation goes here
   Resources:
-    TodosDynamoDbTable:
+    # Project S3 Bucket
+    MyS3Bucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: 'vin-serverless-bucket-12345'
+
+    # Houses Table
+    HousesDynamoDbTable:
       Type: 'AWS::DynamoDB::Table'
-      DeletionPolicy: Retain
       Properties:
         AttributeDefinitions:
           -
@@ -45,4 +60,47 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        TableName: 'Houses'
+
+    # Characters Table
+    CharactersDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        TableName: 'Characters'
+
+    # Spells Table
+    SpellsDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        TableName: 'Spells'
+
+custom:
+  s3Sync:
+    # - bucketName: !Ref MyS3Bucket
+    - bucketName: 'vin-serverless-bucket-12345'
+      localDir: data
