@@ -2,11 +2,12 @@
   "name": "aws-serverless",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "conjure.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "tsc -w",
-    "lint": "tslint '*.ts'"
+    "lint": "tslint '*.ts'",
+    "tsc": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,7 @@
   "devDependencies": {
     "@types/aws-sdk": "^2.7.0",
     "@types/node": "^12.12.37",
+    "serverless-dotenv-plugin": "^2.4.2",
     "tslint": "^6.1.1",
     "tslint-config-standard": "^9.0.0",
     "typescript": "^3.8.3"

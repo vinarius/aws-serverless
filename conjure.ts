@@ -7,7 +7,7 @@ config()
 import * as uuid from 'uuid'
 import { DynamoDB, S3 } from 'aws-sdk'
 import { BatchWriteItemInput, WriteRequest, DocumentClient, BatchWriteItemOutput } from 'aws-sdk/clients/dynamodb'
-const myRegion: string = 'us-east-1'
+const myRegion: string = process.env.MY_AWS_REGION
 const dynamoDb: DocumentClient = new DynamoDB.DocumentClient({
   region: myRegion,
   accessKeyId: process.env.ACCESS_KEY_ID,
@@ -44,9 +44,10 @@ function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, ti
       batches.push(dynamoDbWriteBatch)
       dynamoDbWriteBatch = []
     }
-
-    if (dynamoDbWriteBatch.length > 0) batches.push(dynamoDbWriteBatch)
   })
+
+  // Collect remaining write requests if remainder did not equal 25.
+  if (dynamoDbWriteBatch.length > 0) batches.push(dynamoDbWriteBatch)
 
   const batchWriteParamsArr: Promise<BatchWriteItemOutput>[] = []
   batches.forEach((batch: WriteRequest[]) => {
@@ -65,18 +66,18 @@ export interface LambdaResponse {
   body: string
 }
 
-export async function create (): Promise<LambdaResponse> {
+export async function conjure (): Promise<LambdaResponse> {
   const timestamp: number = new Date().getTime()
 
-  const housesDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'houses.json' }).promise()).Body.toString()
-  const charactersDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'characters.json' }).promise()).Body.toString()
-  const spellsDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'spells.json' }).promise()).Body.toString()
-
-  const housesData: object = JSON.parse(housesDataStringified)
-  const charactersData: object = JSON.parse(charactersDataStringified)
-  const spellsData: object = JSON.parse(spellsDataStringified)
-
   try {
+    const housesDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'houses.json' }).promise()).Body.toString()
+    const charactersDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'characters.json' }).promise()).Body.toString()
+    const spellsDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'spells.json' }).promise()).Body.toString()
+
+    const housesData: object = JSON.parse(housesDataStringified)
+    const charactersData: object = JSON.parse(charactersDataStringified)
+    const spellsData: object = JSON.parse(spellsDataStringified)
+
     await prepareDataAndExecuteBatchWrites(housesData['data'], 'Houses', timestamp)
     await prepareDataAndExecuteBatchWrites(charactersData['data'], 'Characters', timestamp)
     await prepareDataAndExecuteBatchWrites(spellsData['data'], 'Spells', timestamp)
