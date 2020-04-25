@@ -1,51 +1,92 @@
 'use strict'
 
+// Import env variables
+import { config } from 'dotenv'
+config()
+
 import * as uuid from 'uuid'
-import { DynamoDB } from 'aws-sdk'
+import { DynamoDB, S3 } from 'aws-sdk'
+import { BatchWriteItemInput, WriteRequest, DocumentClient, BatchWriteItemOutput } from 'aws-sdk/clients/dynamodb'
+const myRegion: string = 'us-east-1'
+const dynamoDb: DocumentClient = new DynamoDB.DocumentClient({
+  region: myRegion,
+  accessKeyId: process.env.ACCESS_KEY_ID,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY
+})
+const s3: S3 = new S3({
+  region: myRegion,
+  accessKeyId: process.env.ACCESS_KEY_ID,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY
+})
+const bucketName: string = process.env.BUCKET_NAME
 
-const dynamoDb = new DynamoDB.DocumentClient()
+function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, timestamp: number): Promise<BatchWriteItemOutput[]> {
+  const batches: WriteRequest[][] = []
+  let dynamoDbWriteBatch: WriteRequest[] = []
 
-export default async (event, context, callback): Promise<DynamoDB.DocumentClient.PutItemOutput> => {
-  try {
-    const timestamp = new Date().getTime()
-    const data = JSON.parse(event.body)
-
-    if (typeof data.text !== 'string') {
-      console.error(`Validation Failed. Request body 'text' property must be of type 'string'.`)
-      throw new Error('Error conjuring magic spells.')
-    }
-
-    const params = {
-      TableName: process.env.DYNAMODB_TABLE,
-      Item: {
-        id: uuid.v1(),
-        text: data.text,
-        createdAt: timestamp,
-        updatedAt: timestamp
+  dataSet.forEach((value: any) => {
+    const PutRequest: WriteRequest = {
+      PutRequest: {
+        Item: {
+          id: uuid.v1(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          ...value
+        }
       }
     }
 
-    return await dynamoDb.put(params).promise()
+    dynamoDbWriteBatch.push(PutRequest)
 
-    // // Write to the database.
-    // dynamoDb.put(params, (error, result) => {
-    //   // handle potential errors
-    //   if (error) {
-    //     console.error(error)
-    //     throw new Error('Error conjuring magic spells.')
-    //   }
+    // DynamoDB batch writes only accept up to 25 write requests at a time.
+    // Therefore, I divided the data into batches and made however many calls necessary with 25 data write requests per batch.
+    if (dynamoDbWriteBatch.length === 25) {
+      batches.push(dynamoDbWriteBatch)
+      dynamoDbWriteBatch = []
+    }
 
-    //   console.log('the callback result is:', result)
+    if (dynamoDbWriteBatch.length > 0) batches.push(dynamoDbWriteBatch)
+  })
 
-    //   // create a response
-    //   const response = {
-    //     statusCode: 200,
-    //     body: JSON.stringify(result)
-    //   }
-    //   callback(null, response)
-    // })
+  const batchWriteParamsArr: Promise<BatchWriteItemOutput>[] = []
+  batches.forEach((batch: WriteRequest[]) => {
+    const batchWriteParams: BatchWriteItemInput = {
+      RequestItems: {}
+    }
+    batchWriteParams['RequestItems'][tableName] = batch
+    batchWriteParamsArr.push(dynamoDb.batchWrite(batchWriteParams).promise())
+  })
+
+  return Promise.all(batchWriteParamsArr)
+}
+
+export interface LambdaResponse {
+  statusCode: number
+  body: string
+}
+
+export async function create (): Promise<LambdaResponse> {
+  const timestamp: number = new Date().getTime()
+
+  const housesDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'houses.json' }).promise()).Body.toString()
+  const charactersDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'characters.json' }).promise()).Body.toString()
+  const spellsDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'spells.json' }).promise()).Body.toString()
+
+  const housesData: object = JSON.parse(housesDataStringified)
+  const charactersData: object = JSON.parse(charactersDataStringified)
+  const spellsData: object = JSON.parse(spellsDataStringified)
+
+  try {
+    await prepareDataAndExecuteBatchWrites(housesData['data'], 'Houses', timestamp)
+    await prepareDataAndExecuteBatchWrites(charactersData['data'], 'Characters', timestamp)
+    await prepareDataAndExecuteBatchWrites(spellsData['data'], 'Spells', timestamp)
   } catch (error) {
-    console.error('Failure inserting magic:', error.message)
-    return error.message
+    console.error('error conjuring magic:', error)
+    throw new Error(error)
+  }
+
+  return {
+    statusCode: 200,
+    body: 'Lambda function succeeded. Go check your tables!'
   }
 }

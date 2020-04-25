@@ -35,23 +35,11 @@ I stored the access keys in environment variables, leaving them out of the repos
 I then used the 'serverless deploy' command to take the local code, leverage the aws user to go into cloud formation, and generate the stack.
 
 What did it generate:
-    DynamoDb table
-    S3 Bucket Policy
-    S3 Bucket
-    IAM role for lambada execution
-    Lambda logging capabilities with cloudwatch
-    Lambda function
-    Modified lambda function's apigateway permissions
-    Apigateway resources:
-        rest api
-        created a route for /todos
-            POST method (insert data in DynamoDB)
-            Options method (get metadata on what http methods are available for this route)
-        Apigateway deployment
-
-I can now send a POST request to:
-https://5a8k75s8t3.execute-api.us-east-1.amazonaws.com/dev/todos
-Send in the request body
-{
-    "text": <This string will be inserted into the dynamoDB table!>
-}
+- DynamoDb Spells Table
+- DynamoDb Houses Table
+- DynamoDb Characters Table
+- S3 Bucket
+- S3 Bucket Policy
+- IAM role for lambda execution
+- Lambda logging capabilities with cloudwatch
+- Lambda function
