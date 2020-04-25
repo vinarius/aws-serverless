@@ -1,51 +1,80 @@
 'use strict'
 
 import * as uuid from 'uuid'
-import { DynamoDB } from 'aws-sdk'
+import { DynamoDB, S3 } from 'aws-sdk'
+import { BatchWriteItemInput, WriteRequest, DocumentClient } from 'aws-sdk/clients/dynamodb'
 
-const dynamoDb = new DynamoDB.DocumentClient()
+const dynamoDb: DocumentClient = new DynamoDB.DocumentClient({
+  region: 'us-east-1',
+  accessKeyId: process.env.ACCESS_KEY_ID,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY
+})
+const s3: S3 = new S3({
+  accessKeyId: process.env.ACCESS_KEY_ID,
+  secretAccessKey: process.env.SECRET_ACCESS_KEY
+})
+const bucketName: string = process.env.BUCKET_NAME
 
-export default async (event, context, callback): Promise<DynamoDB.DocumentClient.PutItemOutput> => {
-  try {
-    const timestamp = new Date().getTime()
-    const data = JSON.parse(event.body)
+function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, timestamp: number): void {
+  const batches: WriteRequest[][] = []
+  let dynamoDbWriteBatch: WriteRequest[] = []
 
-    if (typeof data.text !== 'string') {
-      console.error(`Validation Failed. Request body 'text' property must be of type 'string'.`)
-      throw new Error('Error conjuring magic spells.')
-    }
-
-    const params = {
-      TableName: process.env.DYNAMODB_TABLE,
-      Item: {
-        id: uuid.v1(),
-        text: data.text,
-        createdAt: timestamp,
-        updatedAt: timestamp
+  dataSet.forEach((value: any) => {
+    const PutRequest: WriteRequest = {
+      PutRequest: {
+        Item: {
+          id: uuid.v1(),
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          ...value
+        }
       }
     }
 
-    return await dynamoDb.put(params).promise()
+    dynamoDbWriteBatch.push(PutRequest)
 
-    // // Write to the database.
-    // dynamoDb.put(params, (error, result) => {
-    //   // handle potential errors
-    //   if (error) {
-    //     console.error(error)
-    //     throw new Error('Error conjuring magic spells.')
-    //   }
+    // DynamoDB batch writes only accept up to 25 elements for an insert at a time.
+    // Therefore, I divided the data into batches and made however many calls necessary with 25 data elements per batch.
+    if (dynamoDbWriteBatch.length === 25) {
+      batches.push(dynamoDbWriteBatch)
+      dynamoDbWriteBatch = []
+    }
 
-    //   console.log('the callback result is:', result)
+    if (dynamoDbWriteBatch.length > 0) batches.push(dynamoDbWriteBatch)
+  })
 
-    //   // create a response
-    //   const response = {
-    //     statusCode: 200,
-    //     body: JSON.stringify(result)
-    //   }
-    //   callback(null, response)
-    // })
-  } catch (error) {
-    console.error('Failure inserting magic:', error.message)
-    return error.message
+  batches.forEach(async (batch: WriteRequest[]) => {
+    const batchWriteParams: BatchWriteItemInput = {
+      RequestItems: {}
+    }
+    batchWriteParams['RequestItems'][tableName] = batch
+
+    await dynamoDb.batchWrite(batchWriteParams).promise()
+  })
+}
+
+export interface LambdaResponse {
+  statusCode: number
+  body: string
+}
+
+export async function create (): Promise<LambdaResponse> {
+  const timestamp: number = new Date().getTime()
+
+  const housesDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'houses.json' }).promise()).Body.toString()
+  const charactersDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'characters.json' }).promise()).Body.toString()
+  const spellsDataStringified: string = (await s3.getObject({ Bucket: bucketName, Key: 'spells.json' }).promise()).Body.toString()
+
+  const housesData: object = JSON.parse(housesDataStringified)
+  const charactersData: object = JSON.parse(charactersDataStringified)
+  const spellsData: object = JSON.parse(spellsDataStringified)
+
+  prepareDataAndExecuteBatchWrites(housesData['data'], 'Houses', timestamp)
+  prepareDataAndExecuteBatchWrites(charactersData['data'], 'Characters', timestamp)
+  prepareDataAndExecuteBatchWrites(spellsData['data'], 'Spells', timestamp)
+
+  return {
+    statusCode: 200,
+    body: 'Lambda function succeeded. Go check your tables!'
   }
 }
