@@ -12,28 +12,25 @@ provider:
   region: us-east-1
   environment:
     accountId: "#{AWS::AccountId}"
-    BUCKET_NAME: "vin-serverless-bucket-12345"
+    BUCKET_NAME: ${env:BUCKET_NAME}
   iamRoleStatements:
     - Effect: Allow
       Action:
         - dynamodb:PutItem
         - dynamodb:UpdateItem
-      # Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
       Resource:
-        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Characters"
-        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Houses"
-        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Spells"
-        - "arn:aws:dynamodb:${self:provider.region}:*:table/Characters"
-        - "arn:aws:dynamodb:${self:provider.region}:*:table/Houses"
-        - "arn:aws:dynamodb:${self:provider.region}:*:table/Spells"
+        - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Characters"
+        - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Houses"
+        - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Spells"
 
 plugins:
   - serverless-s3-sync
   - serverless-pseudo-parameters
+  - serverless-dotenv-plugin
 
 functions:
-  create:
-    handler: Api-Routes/create.create
+  conjure:
+    handler: conjure.conjure
 
 resources:
   # Raw cloud formation goes here
