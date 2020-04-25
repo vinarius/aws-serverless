@@ -1,21 +1,26 @@
 'use strict'
 
+// Import env variables
+import { config } from 'dotenv'
+config()
+
 import * as uuid from 'uuid'
 import { DynamoDB, S3 } from 'aws-sdk'
-import { BatchWriteItemInput, WriteRequest, DocumentClient } from 'aws-sdk/clients/dynamodb'
-
+import { BatchWriteItemInput, WriteRequest, DocumentClient, BatchWriteItemOutput } from 'aws-sdk/clients/dynamodb'
+const myRegion: string = 'us-east-1'
 const dynamoDb: DocumentClient = new DynamoDB.DocumentClient({
-  region: 'us-east-1',
+  region: myRegion,
   accessKeyId: process.env.ACCESS_KEY_ID,
   secretAccessKey: process.env.SECRET_ACCESS_KEY
 })
 const s3: S3 = new S3({
+  region: myRegion,
   accessKeyId: process.env.ACCESS_KEY_ID,
   secretAccessKey: process.env.SECRET_ACCESS_KEY
 })
 const bucketName: string = process.env.BUCKET_NAME
 
-function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, timestamp: number): void {
+function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, timestamp: number): Promise<BatchWriteItemOutput[]> {
   const batches: WriteRequest[][] = []
   let dynamoDbWriteBatch: WriteRequest[] = []
 
@@ -33,8 +38,8 @@ function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, ti
 
     dynamoDbWriteBatch.push(PutRequest)
 
-    // DynamoDB batch writes only accept up to 25 elements for an insert at a time.
-    // Therefore, I divided the data into batches and made however many calls necessary with 25 data elements per batch.
+    // DynamoDB batch writes only accept up to 25 write requests at a time.
+    // Therefore, I divided the data into batches and made however many calls necessary with 25 data write requests per batch.
     if (dynamoDbWriteBatch.length === 25) {
       batches.push(dynamoDbWriteBatch)
       dynamoDbWriteBatch = []
@@ -43,14 +48,16 @@ function prepareDataAndExecuteBatchWrites (dataSet: any[], tableName: string, ti
     if (dynamoDbWriteBatch.length > 0) batches.push(dynamoDbWriteBatch)
   })
 
-  batches.forEach(async (batch: WriteRequest[]) => {
+  const batchWriteParamsArr: Promise<BatchWriteItemOutput>[] = []
+  batches.forEach((batch: WriteRequest[]) => {
     const batchWriteParams: BatchWriteItemInput = {
       RequestItems: {}
     }
     batchWriteParams['RequestItems'][tableName] = batch
-
-    await dynamoDb.batchWrite(batchWriteParams).promise()
+    batchWriteParamsArr.push(dynamoDb.batchWrite(batchWriteParams).promise())
   })
+
+  return Promise.all(batchWriteParamsArr)
 }
 
 export interface LambdaResponse {
@@ -69,9 +76,14 @@ export async function create (): Promise<LambdaResponse> {
   const charactersData: object = JSON.parse(charactersDataStringified)
   const spellsData: object = JSON.parse(spellsDataStringified)
 
-  prepareDataAndExecuteBatchWrites(housesData['data'], 'Houses', timestamp)
-  prepareDataAndExecuteBatchWrites(charactersData['data'], 'Characters', timestamp)
-  prepareDataAndExecuteBatchWrites(spellsData['data'], 'Spells', timestamp)
+  try {
+    await prepareDataAndExecuteBatchWrites(housesData['data'], 'Houses', timestamp)
+    await prepareDataAndExecuteBatchWrites(charactersData['data'], 'Characters', timestamp)
+    await prepareDataAndExecuteBatchWrites(spellsData['data'], 'Spells', timestamp)
+  } catch (error) {
+    console.error('error conjuring magic:', error)
+    throw new Error(error)
+  }
 
   return {
     statusCode: 200,

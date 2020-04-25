@@ -6,22 +6,30 @@ frameworkVersion: ">=1.1.0 <2.0.0"
 
 provider:
   name: aws
-  # cfnRole: arn:aws:iam::#{AWS::AccountId}:role/CFN-Serverless-Role # Causes error 'Cross-account pass role is not allowed' - need to investigate
+  # cfnRole: arn:aws:iam::${AWS::AccountId}:role/CFN-Serverless-Role # Causes error 'Cross-account pass role is not allowed' - need to investigate
   runtime: nodejs12.x
   stage: dev
   region: us-east-1
   environment:
-    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
+    accountId: "#{AWS::AccountId}"
+    BUCKET_NAME: "vin-serverless-bucket-12345"
   iamRoleStatements:
     - Effect: Allow
       Action:
         - dynamodb:PutItem
         - dynamodb:UpdateItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      # Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      Resource:
+        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Characters"
+        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Houses"
+        # - "arn:aws:dynamodb:${self:provider.region}:${self:provider.environment.accountId}:table/Spells"
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/Characters"
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/Houses"
+        - "arn:aws:dynamodb:${self:provider.region}:*:table/Spells"
 
 plugins:
   - serverless-s3-sync
-  # - serverless-pseudo-parameters
+  - serverless-pseudo-parameters
 
 functions:
   create:
@@ -34,7 +42,7 @@ resources:
     MyS3Bucket:
       Type: 'AWS::S3::Bucket'
       Properties:
-        BucketName: 'vin-serverless-bucket-12345'
+        BucketName: ${self:provider.environment.BUCKET_NAME}
 
     # Houses Table
     HousesDynamoDbTable:
@@ -67,8 +75,8 @@ resources:
             AttributeName: id
             KeyType: HASH
         ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
         # TableName: ${self:provider.environment.DYNAMODB_TABLE}
         TableName: 'Characters'
 
@@ -85,12 +93,12 @@ resources:
             AttributeName: id
             KeyType: HASH
         ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
         # TableName: ${self:provider.environment.DYNAMODB_TABLE}
         TableName: 'Spells'
 
 custom:
   s3Sync:
-    - bucketName: 'vin-serverless-bucket-12345'
+    - bucketName: ${self:provider.environment.BUCKET_NAME}
       localDir: data
