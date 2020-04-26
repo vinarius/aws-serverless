@@ -6,6 +6,10 @@
   "exclude": [
     "node_modules"
   ],
+  "include": [
+    "*.ts",
+    "./.serverless_plugins/*.ts"
+  ],
   "types": [
     "node",
     "aws-sdk"
