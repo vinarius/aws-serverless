@@ -6,7 +6,7 @@ frameworkVersion: ">=1.1.0 <2.0.0"
 
 provider:
   name: aws
-  # cfnRole: arn:aws:iam::${AWS::AccountId}:role/CFN-Serverless-Role # Causes error 'Cross-account pass role is not allowed' - need to investigate
+  # cfnRole: arn:aws:iam::#{AWS::AccountId}:role/CFN-Serverless-Role # Causes error 'Cross-account pass role is not allowed' - Might need to use STS.
   runtime: nodejs12.x
   stage: dev
   region: us-east-1
@@ -27,6 +27,7 @@ plugins:
   - serverless-s3-sync
   - serverless-pseudo-parameters
   - serverless-dotenv-plugin
+  - invoke-conjure-lambda
 
 functions:
   conjure:
@@ -56,7 +57,6 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
         TableName: 'Houses'
 
     # Characters Table
@@ -74,7 +74,6 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 5
           WriteCapacityUnits: 5
-        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
         TableName: 'Characters'
 
     # Spells Table
@@ -92,10 +91,10 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 5
           WriteCapacityUnits: 5
-        # TableName: ${self:provider.environment.DYNAMODB_TABLE}
         TableName: 'Spells'
 
 custom:
+  stage: ${opt:stage, self:provider.stage}
   s3Sync:
     - bucketName: ${self:provider.environment.BUCKET_NAME}
       localDir: data
