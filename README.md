@@ -10,7 +10,7 @@ The following environment variables are required:
 - ACCESS_KEY_ID - Your aws account key id.
 - SECRET_ACCESS_KEY - Your aws account secret access key.
 - BUCKET_NAME - Desired s3 bucket to load data into and extract out of. Must be a globally unique name conforming to [s3 standards](https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html).
-- AWS_REGION - Desired region to generate stack resources in.
+- MY_AWS_REGION - Desired region to generate stack resources in.
 
 Run the following commands to get started:
 `npm i`
